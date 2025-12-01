@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const summaryContent = document.getElementById('summary-content');
     const statusText = document.getElementById('status-text');
+    const instructionInput = document.getElementById('instruction-input');
+    const sendBtn = document.getElementById('send-instruction-btn');
 
     // Load initial state
     chrome.storage.local.get(['meetingSummary'], (result) => {
@@ -12,34 +14,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Listen for changes in storage (from content script)
     chrome.storage.onChanged.addListener((changes, namespace) => {
-        if (namespace === 'local' && changes.meetingSummary) {
-            // Only update if not currently editing (simple check for focus)
-            // For Phase 1, we might just overwrite or be careful.
-            // Let's overwrite for now as per "Realtime" requirement, 
-            // but in Phase 2 we need to handle conflicts.
-            // If the user is typing, this might be annoying.
-            // For now, let's check if the element has focus.
-            if (document.activeElement !== summaryContent) {
+        if (namespace === 'local') {
+            if (changes.meetingSummary) {
                 summaryContent.innerText = changes.meetingSummary.newValue;
                 statusText.innerText = 'Updated from meeting.';
                 highlightUpdate();
-            } else {
-                statusText.innerText = 'Update pending (you are editing)...';
+
+                // If we were waiting for an update, clear the instruction input
+                if (instructionInput.value && sendBtn.disabled) {
+                    instructionInput.value = '';
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = '次回更新時に反映';
+                }
             }
         }
     });
 
-    // Phase 2: Save changes back to storage
-    let debounceTimer;
-    summaryContent.addEventListener('input', () => {
-        statusText.innerText = 'Saving...';
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            const newText = summaryContent.innerText;
-            chrome.storage.local.set({ meetingSummary: newText }, () => {
-                statusText.innerText = 'Saved.';
-            });
-        }, 1000); // 1 second debounce
+    // Handle Instruction Sending
+    sendBtn.addEventListener('click', () => {
+        const instruction = instructionInput.value.trim();
+        if (!instruction) return;
+
+        // Save to storage
+        chrome.storage.local.set({ pendingInstruction: instruction }, () => {
+            statusText.innerText = 'Instruction queued. Waiting for next update...';
+            sendBtn.disabled = true;
+            sendBtn.textContent = '送信済み (更新待ち)';
+        });
     });
 
     function highlightUpdate() {

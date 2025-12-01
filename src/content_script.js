@@ -108,15 +108,23 @@ async function triggerSummary() {
   if (isRequesting) return; // Prevent overlap
   if (now - lastSummaryTime < intervalMs) return; // Wait for interval
 
+  // Check for pending instructions
+  const storage = await chrome.storage.local.get(['pendingInstruction']);
+  let instructionText = "";
+  if (storage.pendingInstruction) {
+    console.log('Found pending instruction:', storage.pendingInstruction);
+    instructionText = `\n\n【ユーザーからの追加指示】: ${storage.pendingInstruction}\nこの指示に従って要約を修正・更新してください。`;
+  }
+
   // Sliding Window with Configurable History
   const contextCaptions = previousBuffer.slice(-config.historyCount);
   const newCaptions = captionBuffer;
   const MIN_CHARS_FOR_SUMMARY = 100;
 
-  // Check if we have enough NEW content
+  // Check if we have enough NEW content OR if there is an instruction
   const newContentLength = newCaptions.map(c => c.text).join('').length;
 
-  if (newContentLength < MIN_CHARS_FOR_SUMMARY) {
+  if (newContentLength < MIN_CHARS_FOR_SUMMARY && !instructionText) {
     // console.log('Not enough new content.');
     return;
   }
@@ -127,7 +135,7 @@ async function triggerSummary() {
 
   const textToSummarize = [...contextCaptions, ...newCaptions]
     .map(c => `${c.speaker}: ${c.text}`)
-    .join('\n');
+    .join('\n') + instructionText;
 
   // Capture IDs for highlighting
   const sentCaptionIds = newCaptions.map(c => c.id);
@@ -152,6 +160,11 @@ async function triggerSummary() {
       captionBuffer = [];
 
       lastSummaryTime = Date.now(); // Reset timer ONLY after success
+
+      // Clear pending instruction if it existed
+      if (instructionText) {
+        chrome.storage.local.remove(['pendingInstruction']);
+      }
     } else {
       console.error('Summary failed:', response.error);
       const summaryDiv = document.querySelector('#realtime-summary .content');
