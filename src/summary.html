@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Summary - Realtime</title>
+    <link rel="stylesheet" href="summary.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Meeting Summary</h1>
+            <div class="status-bar">
+                <span id="status-text">Waiting for updates...</span>
+            </div>
+        </header>
+        <main>
+            <div id="summary-content" class="summary-content" contenteditable="true">
+                <!-- Summary text will be injected here -->
+            </div>
+        </main>
+    </div>
+    <script src="summary.js"></script>
+</body>
+
+</html>

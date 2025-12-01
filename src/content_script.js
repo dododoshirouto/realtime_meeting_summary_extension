@@ -74,6 +74,8 @@ function updateSummaryUI(summary) {
   if (summaryDiv) {
     summaryDiv.innerHTML = summary.replace(/\n/g, '<br>');
   }
+  // Save to storage for separate tab view
+  chrome.storage.local.set({ meetingSummary: summary });
 }
 
 function setLoading(isLoading) {

@@ -10,6 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const summaryBtn = document.getElementById('openSummary');
+    if (summaryBtn) {
+        summaryBtn.addEventListener('click', () => {
+            chrome.tabs.create({ url: chrome.runtime.getURL('src/summary.html') });
+        });
+    }
+
     // Check if we are in a Google Meet tab
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const currentTab = tabs[0];
