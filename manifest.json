@@ -30,6 +30,7 @@
                 "https://meet.google.com/*"
             ],
             "js": [
+                "src/captions.js",
                 "src/content_script.js"
             ],
             "css": [
