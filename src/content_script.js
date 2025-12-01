@@ -1,6 +1,8 @@
 console.log('Realtime Meeting Summary: Content script loaded');
 
 let captionBuffer = [];
+let previousBuffer = []; // For sliding window context
+let currentSummary = ""; // Store the latest summary
 let lastSummaryTime = 0;
 const SUMMARY_INTERVAL = 30000; // 30 seconds
 const MIN_CHARS_FOR_SUMMARY = 100;
@@ -57,29 +59,41 @@ async function triggerSummary() {
   const now = Date.now();
   if (now - lastSummaryTime < SUMMARY_INTERVAL) return;
 
-  const textToSummarize = captionBuffer.map(c => `${c.speaker}: ${c.text}`).join('\n');
+  // Sliding Window: Combine previous buffer (context) + current buffer (new)
+  // Limit previous buffer to last 5 items to save tokens while keeping context
+  const contextCaptions = previousBuffer.slice(-5);
+  const newCaptions = captionBuffer;
 
-  if (textToSummarize.length < MIN_CHARS_FOR_SUMMARY) {
-    console.log('Not enough content to summarize yet.');
+  const textToSummarize = [...contextCaptions, ...newCaptions]
+    .map(c => `${c.speaker}: ${c.text}`)
+    .join('\n');
+
+  // Check if we have enough NEW content (ignoring context for trigger check)
+  const newContentLength = newCaptions.map(c => c.text).join('').length;
+
+  if (newContentLength < MIN_CHARS_FOR_SUMMARY) {
+    console.log('Not enough new content to summarize yet.');
     return;
   }
 
-  console.log('Triggering summary generation...');
+  console.log('Triggering summary generation with context...');
   lastSummaryTime = now;
 
   // Send to background
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'generateSummary',
-      text: textToSummarize
+      text: textToSummarize,
+      currentSummary: currentSummary // Send existing summary for update
     });
 
     if (response.success) {
-      updateSummaryUI(response.summary);
-      // Optional: Clear buffer or keep it for context? 
-      // For "latest summary", we might want to keep some context or just clear.
-      // Let's clear for now to avoid token limits, but in a real app we'd want a rolling window.
-      captionBuffer = [];
+      currentSummary = response.summary; // Update local state
+      updateSummaryUI(currentSummary);
+
+      // Update buffers
+      previousBuffer = [...captionBuffer]; // Current becomes previous
+      captionBuffer = []; // Clear current
     } else {
       console.error('Summary failed:', response.error);
       const summaryDiv = document.querySelector('#realtime-summary .content');
@@ -124,8 +138,6 @@ setTimeout(() => {
   if (window.CaptionObserver) {
     const observer = new window.CaptionObserver((captionData) => {
       // Buffer for AI
-      // Avoid duplicates in buffer if possible, but for now simple push
-      // We might want to check if the last item has the same ID to update it instead of push
       const lastIdx = captionBuffer.findIndex(c => c.id === captionData.id);
       if (lastIdx !== -1) {
         captionBuffer[lastIdx] = captionData;
