@@ -129,13 +129,15 @@ async function triggerSummary() {
     return;
   }
 
-  console.log('Triggering summary generation...');
-  isRequesting = true;
-  setLoading(true);
-
   const textToSummarize = [...contextCaptions, ...newCaptions]
     .map(c => `${c.speaker}: ${c.text}`)
     .join('\n') + instructionText;
+
+  console.log('Triggering summary generation...');
+  console.log('Sending to AI:', textToSummarize); // Debug log
+  isRequesting = true;
+  setLoading(true);
+  lastSummaryTime = Date.now(); // Update timer at START of request
 
   // Capture IDs for highlighting
   const sentCaptionIds = newCaptions.map(c => c.id);
@@ -159,7 +161,7 @@ async function triggerSummary() {
       previousBuffer = [...captionBuffer];
       captionBuffer = [];
 
-      lastSummaryTime = Date.now(); // Reset timer ONLY after success
+      // lastSummaryTime = Date.now(); // Removed: Timer is now updated at start
 
       // Clear pending instruction if it existed
       if (instructionText) {
