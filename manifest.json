@@ -1,0 +1,36 @@
+{
+    "manifest_version": 3,
+    "name": "Realtime Meeting Summary",
+    "version": "1.0.0",
+    "description": "Google Meetの会議内容をリアルタイムで要約します。",
+    "permissions": [
+        "storage",
+        "activeTab",
+        "scripting"
+    ],
+    "action": {
+        "default_popup": "src/popup.html",
+        "default_title": "Meeting Summary"
+    },
+    "icons": {
+        "16": "src/icons/icon16.png",
+        "48": "src/icons/icon48.png",
+        "128": "src/icons/icon128.png"
+    },
+    "background": {
+        "service_worker": "src/background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://meet.google.com/*"
+            ],
+            "js": [
+                "src/content_script.js"
+            ],
+            "css": [
+                "src/styles.css"
+            ]
+        }
+    ]
+}
