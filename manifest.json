@@ -12,6 +12,10 @@
         "default_popup": "src/popup.html",
         "default_title": "Meeting Summary"
     },
+    "options_ui": {
+        "page": "src/options.html",
+        "open_in_tab": true
+    },
     "icons": {
         "16": "src/icons/icon16.png",
         "48": "src/icons/icon48.png",

@@ -1,1 +1,52 @@
-/* Styles for injected UI */
+#meeting-summary-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 300px;
+    background-color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    z-index: 9999;
+    font-family: 'Google Sans', Roboto, Arial, sans-serif;
+    overflow: hidden;
+    border: 1px solid #dadce0;
+}
+
+.summary-header {
+    background-color: #f1f3f4;
+    padding: 10px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #dadce0;
+    font-weight: 500;
+    color: #202124;
+}
+
+.summary-header button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: #5f6368;
+    padding: 0 5px;
+}
+
+.summary-header button:hover {
+    color: #202124;
+}
+
+.summary-content {
+    padding: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+    font-size: 14px;
+    color: #3c4043;
+    line-height: 1.5;
+}
+
+.placeholder {
+    color: #70757a;
+    font-style: italic;
+    text-align: center;
+}
