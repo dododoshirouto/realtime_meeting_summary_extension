@@ -91,3 +91,29 @@
     text-align: center;
     margin-top: 20px;
 }
+
+/* Loading Animation */
+.loading-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: #1a73e8;
+    animation: spin 1s ease-in-out infinite;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Debug Highlight */
+.sent-to-ai {
+    background-color: #e8f0fe;
+    /* Light blue background */
+    border-left: 3px solid #1a73e8;
+}

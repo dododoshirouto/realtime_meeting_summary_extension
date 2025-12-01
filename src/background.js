@@ -19,9 +19,10 @@ async function handleSummaryRequest(request) {
     try {
         const { text, currentSummary, model } = request;
 
-        // Get API key from storage
-        const result = await chrome.storage.local.get(['openaiApiKey']);
+        // Get API key and Prompt from storage
+        const result = await chrome.storage.local.get(['openaiApiKey', 'systemPrompt']);
         const apiKey = result.openaiApiKey;
+        const customPrompt = result.systemPrompt;
 
         if (!apiKey) {
             throw new Error('API Key is not set. Please check options.');
@@ -32,7 +33,7 @@ async function handleSummaryRequest(request) {
 
         if (currentSummary && currentSummary.length > 0) {
             // Update Mode
-            systemPrompt = `
+            systemPrompt = customPrompt || `
 あなたは会議の書記です。
 「現在の議事録」と「追加の会話（字幕）」が提供されます。
 これらを統合し、情報を更新した**新しい議事録**を作成してください。
@@ -52,14 +53,24 @@ ${text}
 `;
         } else {
             // Create Mode (First time)
-            systemPrompt = `
+            systemPrompt = customPrompt || `
 あなたは会議の書記です。
 提供された会議の字幕テキストから、議事録を作成してください。
 以下の制約を守ってください：
 1. 簡潔な箇条書きで出力すること。
 2. 重要な決定事項やネクストアクションがあれば強調すること。
 `;
-            userContent = text;
+            if (customPrompt) {
+                userContent = `
+【現在の議事録】
+(なし)
+
+【追加の会話】
+${text}
+`;
+            } else {
+                userContent = text;
+            }
         }
 
         // Call OpenAI API

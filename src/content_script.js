@@ -1,11 +1,32 @@
 console.log('Realtime Meeting Summary: Content script loaded');
 
 let captionBuffer = [];
-let previousBuffer = []; // For sliding window context
-let currentSummary = ""; // Store the latest summary
+let previousBuffer = [];
+let currentSummary = "";
 let lastSummaryTime = 0;
-const SUMMARY_INTERVAL = 30000; // 30 seconds
-const MIN_CHARS_FOR_SUMMARY = 100;
+let isRequesting = false; // Flag to prevent overlapping requests
+
+// Default Config
+let config = {
+  summaryInterval: 30, // seconds
+  historyCount: 5
+};
+
+// Load config
+chrome.storage.local.get(['summaryInterval', 'historyCount'], (result) => {
+  if (result.summaryInterval) config.summaryInterval = result.summaryInterval;
+  if (result.historyCount !== undefined) config.historyCount = result.historyCount;
+  console.log('Config loaded:', config);
+});
+
+// Listen for config changes
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local') {
+    if (changes.summaryInterval) config.summaryInterval = changes.summaryInterval.newValue;
+    if (changes.historyCount) config.historyCount = changes.historyCount.newValue;
+    console.log('Config updated:', config);
+  }
+});
 
 function createSummaryPanel() {
   if (document.getElementById('meeting-summary-panel')) return;
@@ -15,6 +36,7 @@ function createSummaryPanel() {
   panel.innerHTML = `
     <div class="summary-header">
       <span>Meeting Summary</span>
+      <span id="loading-indicator" style="display:none;" class="loading-spinner"></span>
       <button id="summary-toggle-btn">_</button>
     </div>
     <div class="panel-body" id="panel-body">
@@ -50,50 +72,84 @@ function createSummaryPanel() {
 function updateSummaryUI(summary) {
   const summaryDiv = document.querySelector('#realtime-summary .content');
   if (summaryDiv) {
-    // Convert newlines to <br> for simple formatting
     summaryDiv.innerHTML = summary.replace(/\n/g, '<br>');
   }
 }
 
-async function triggerSummary() {
-  const now = Date.now();
-  if (now - lastSummaryTime < SUMMARY_INTERVAL) return;
+function setLoading(isLoading) {
+  const indicator = document.getElementById('loading-indicator');
+  if (indicator) {
+    indicator.style.display = isLoading ? 'inline-block' : 'none';
+  }
+}
 
-  // Sliding Window: Combine previous buffer (context) + current buffer (new)
-  // Limit previous buffer to last 5 items to save tokens while keeping context
-  const contextCaptions = previousBuffer.slice(-5);
+function markCaptionsAsSent(captionIds) {
+  const logContent = document.querySelector('#captions-log .content');
+  if (!logContent) return;
+
+  captionIds.forEach(id => {
+    const p = logContent.querySelector(`p[data-caption-id="${id}"]`);
+    if (p) {
+      p.classList.add('sent-to-ai');
+    }
+  });
+}
+
+async function triggerSummary() {
+  // Safe Interval Check:
+  // 1. Check if enough time passed since last SUCCESSFUL summary start
+  // 2. Check if a request is currently in progress (isRequesting)
+
+  const now = Date.now();
+  const intervalMs = config.summaryInterval * 1000;
+
+  if (isRequesting) return; // Prevent overlap
+  if (now - lastSummaryTime < intervalMs) return; // Wait for interval
+
+  // Sliding Window with Configurable History
+  const contextCaptions = previousBuffer.slice(-config.historyCount);
   const newCaptions = captionBuffer;
+  const MIN_CHARS_FOR_SUMMARY = 100;
+
+  // Check if we have enough NEW content
+  const newContentLength = newCaptions.map(c => c.text).join('').length;
+
+  if (newContentLength < MIN_CHARS_FOR_SUMMARY) {
+    // console.log('Not enough new content.');
+    return;
+  }
+
+  console.log('Triggering summary generation...');
+  isRequesting = true;
+  setLoading(true);
 
   const textToSummarize = [...contextCaptions, ...newCaptions]
     .map(c => `${c.speaker}: ${c.text}`)
     .join('\n');
 
-  // Check if we have enough NEW content (ignoring context for trigger check)
-  const newContentLength = newCaptions.map(c => c.text).join('').length;
-
-  if (newContentLength < MIN_CHARS_FOR_SUMMARY) {
-    console.log('Not enough new content to summarize yet.');
-    return;
-  }
-
-  console.log('Triggering summary generation with context...');
-  lastSummaryTime = now;
+  // Capture IDs for highlighting
+  const sentCaptionIds = newCaptions.map(c => c.id);
 
   // Send to background
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'generateSummary',
       text: textToSummarize,
-      currentSummary: currentSummary // Send existing summary for update
+      currentSummary: currentSummary
     });
 
     if (response.success) {
-      currentSummary = response.summary; // Update local state
+      currentSummary = response.summary;
       updateSummaryUI(currentSummary);
 
+      // Mark captions as sent (Debug feature)
+      markCaptionsAsSent(sentCaptionIds);
+
       // Update buffers
-      previousBuffer = [...captionBuffer]; // Current becomes previous
-      captionBuffer = []; // Clear current
+      previousBuffer = [...captionBuffer];
+      captionBuffer = [];
+
+      lastSummaryTime = Date.now(); // Reset timer ONLY after success
     } else {
       console.error('Summary failed:', response.error);
       const summaryDiv = document.querySelector('#realtime-summary .content');
@@ -101,6 +157,9 @@ async function triggerSummary() {
     }
   } catch (err) {
     console.error('Message sending failed:', err);
+  } finally {
+    isRequesting = false;
+    setLoading(false);
   }
 }
 
@@ -132,12 +191,13 @@ setTimeout(() => {
   };
 
   setInterval(checkCaptionsStatus, 2000);
-  setInterval(triggerSummary, 5000); // Check every 5s if we need to summarize (interval check is inside function)
+
+  // Check trigger every 1s (but logic inside handles the interval)
+  setInterval(triggerSummary, 1000);
 
   // Initialize Caption Observer
   if (window.CaptionObserver) {
     const observer = new window.CaptionObserver((captionData) => {
-      // Buffer for AI
       const lastIdx = captionBuffer.findIndex(c => c.id === captionData.id);
       if (lastIdx !== -1) {
         captionBuffer[lastIdx] = captionData;
