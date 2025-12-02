@@ -32,11 +32,12 @@ async function handleSummaryRequest(request) {
         const { text, currentSummary, model } = request;
 
         // Get API key and Prompt from storage
-        const result = await chrome.storage.local.get(['openaiApiKey', 'systemPrompt', 'apiProvider', 'openaiModel']);
+        const result = await chrome.storage.local.get(['openaiApiKey', 'systemPrompt', 'apiProvider', 'openaiModel', 'maxTokens']);
         const apiKey = result.openaiApiKey;
         const customPrompt = result.systemPrompt;
         const apiProvider = result.apiProvider || 'openai'; // Default to openai
         const storedModel = result.openaiModel;
+        const maxTokens = result.maxTokens || 5000; // Default to 5000
 
         if (!apiKey) {
             throw new Error('API Key is not set. Please check options.');
@@ -106,7 +107,10 @@ ${text}
                         parts: [
                             { text: systemPrompt + "\n\n" + userContent }
                         ]
-                    }]
+                    }],
+                    generationConfig: {
+                        maxOutputTokens: maxTokens
+                    }
                 })
             });
 
@@ -144,7 +148,7 @@ ${text}
                         { role: 'system', content: systemPrompt },
                         { role: 'user', content: userContent }
                     ],
-                    max_tokens: 1000
+                    max_tokens: maxTokens
                 })
             });
 

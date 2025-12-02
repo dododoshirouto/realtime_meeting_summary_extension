@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const apiKeyInput = document.getElementById('apiKey');
     const modelSelect = document.getElementById('model');
+    const maxTokensInput = document.getElementById('maxTokens');
     const intervalInput = document.getElementById('interval');
     const historyCountInput = document.getElementById('historyCount');
     const autoCaptionInput = document.getElementById('autoCaption');
@@ -26,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         openaiApiKey: '',
         apiProvider: 'openai', // 'openai' or 'gemini'
         openaiModel: 'gpt-4o-mini',
+        maxTokens: 5000, // Default
         summaryInterval: 30,
         historyCount: 5,
         autoCaption: true, // Default to true
@@ -35,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         apiKeyInput.value = result.openaiApiKey;
         // We don't set modelSelect.value here immediately because updateProviderUI will rebuild options
         // We pass the saved model to updateProviderUI to restore it
+        maxTokensInput.value = result.maxTokens;
         intervalInput.value = result.summaryInterval;
         historyCountInput.value = result.historyCount;
         autoCaptionInput.checked = result.autoCaption;
@@ -59,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveButton.addEventListener('click', () => {
         const apiKey = apiKeyInput.value.trim();
         const model = modelSelect.value;
+        const maxTokens = parseInt(maxTokensInput.value, 10);
         const interval = parseInt(intervalInput.value, 10);
         const historyCount = parseInt(historyCountInput.value, 10);
         const autoCaption = autoCaptionInput.checked;
@@ -75,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
             openaiApiKey: apiKey,
             apiProvider: provider,
             openaiModel: model,
+            maxTokens: maxTokens,
             summaryInterval: interval,
             historyCount: historyCount,
             autoCaption: autoCaption,

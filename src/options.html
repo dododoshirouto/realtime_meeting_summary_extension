@@ -95,6 +95,10 @@
         .status.error {
             color: #d93025;
         }
+
+        br {
+            display: none;
+        }
     </style>
 </head>
 
@@ -122,6 +126,11 @@
                     <option value="gpt-4o">gpt-4o</option>
                     <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
                 </select>
+            </div>
+
+            <div class="form-group">
+                <label for="maxTokens">Max Tokens (出力の最大長):</label>
+                <input type="number" id="maxTokens" min="100" value="5000">
             </div>
 
             <div class="form-group">
