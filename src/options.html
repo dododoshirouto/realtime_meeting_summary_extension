@@ -152,6 +152,22 @@
             <button id="save">保存</button>
             <div id="status" class="status"></div>
         </div>
+
+        <div class="section" style="border-top: 1px solid #eee; padding-top: 20px;">
+            <h2>Usage & Cost (概算)</h2>
+            <div class="form-group">
+                <label>Total Estimated Cost:</label>
+                <div style="display: flex; align-items: center;">
+                    <span id="totalCostDisplay"
+                        style="font-size: 18px; font-weight: bold; margin-right: 15px;">$0.0000</span>
+                    <button id="resetCost"
+                        style="background-color: #f44336; padding: 5px 10px; font-size: 12px;">Reset</button>
+                </div>
+                <p class="description" style="margin-top: 5px; font-size: 12px;">
+                    ※概算値です。実際の請求額とは異なる場合があります。
+                </p>
+            </div>
+        </div>
     </div>
     <script src="options.js"></script>
 </body>

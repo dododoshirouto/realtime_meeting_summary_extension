@@ -31,6 +31,9 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   }
 });
 
+// Reset session cost on load
+chrome.storage.local.set({ sessionCost: 0 });
+
 function createSummaryPanel() {
   if (document.getElementById('meeting-summary-panel')) return;
 
@@ -39,6 +42,7 @@ function createSummaryPanel() {
   panel.innerHTML = `
     <div class="summary-header">
       <span>Meeting Summary</span>
+      <span id="cost-display" style="font-size: 11px; margin-left: 10px; color: #ddd; font-weight: normal;">$0.0000</span>
       <span id="loading-indicator" style="display:none;" class="loading-spinner"></span>
       <button id="summary-toggle-btn">_</button>
     </div>
@@ -75,7 +79,9 @@ function createSummaryPanel() {
 function updateSummaryUI(summary) {
   const summaryDiv = document.querySelector('#realtime-summary .content');
   if (summaryDiv) {
-    summaryDiv.innerHTML = summary.replace(/\n/g, '<br>');
+    // Normalize newlines: Replace 3+ newlines with 2
+    const normalizedSummary = summary.replace(/\n{3,}/g, '\n\n');
+    summaryDiv.innerHTML = normalizedSummary.replace(/\n/g, '<br>');
   }
   // Save to storage for separate tab view
   chrome.storage.local.set({ meetingSummary: summary });
@@ -156,6 +162,14 @@ async function triggerSummary() {
     if (response.success) {
       currentSummary = response.summary;
       updateSummaryUI(currentSummary);
+
+      // Update Cost Display
+      if (response.costInfo) {
+        const costSpan = document.getElementById('cost-display');
+        if (costSpan) {
+          costSpan.textContent = `$${response.costInfo.sessionCost.toFixed(4)}`;
+        }
+      }
 
       // Mark captions as sent (Debug feature)
       markCaptionsAsSent(sentCaptionIds);

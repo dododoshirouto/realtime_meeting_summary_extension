@@ -10,37 +10,26 @@
 
 <body>
     <div class="container">
-        <!DOCTYPE html>
-        <html lang="ja">
-
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Meeting Summary - Realtime</title>
-            <link rel="stylesheet" href="summary.css">
-        </head>
-
-        <body>
-            <div class="container">
-                <header>
-                    <h1>Meeting Summary</h1>
-                    <div class="status-bar">
-                        <span id="status-text">Waiting for updates...</span>
-                    </div>
-                </header>
-                <main>
-                    <div id="summary-content" class="summary-content">
-                        <!-- Summary text will be injected here -->
-                    </div>
-                </main>
-                <footer>
-                    <div class="instruction-area">
-                        <textarea id="instruction-input" placeholder="AIへの指示を入力 (例: 〇〇の発言を要約して、誤字を修正して...)"></textarea>
-                        <button id="send-instruction-btn">次回更新時に反映</button>
-                    </div>
-                </footer>
+        <header>
+            <h1>Meeting Summary</h1>
+            <div class="status-bar">
+                <span id="cost-display" style="margin-right: 15px; font-weight: bold; color: #555;">$0.0000</span>
+                <span id="status-text">Waiting for updates...</span>
             </div>
-            <script src="summary.js"></script>
-        </body>
+        </header>
+        <main>
+            <div id="summary-content" class="summary-content">
+                <!-- Summary text will be injected here -->
+            </div>
+        </main>
+        <footer>
+            <div class="instruction-area">
+                <textarea id="instruction-input" placeholder="AIへの指示を入力 (例: 〇〇の発言を要約して、誤字を修正して...)"></textarea>
+                <button id="send-instruction-btn">次回更新時に反映</button>
+            </div>
+        </footer>
+    </div>
+    <script src="summary.js"></script>
+</body>
 
-        </html>
+</html>

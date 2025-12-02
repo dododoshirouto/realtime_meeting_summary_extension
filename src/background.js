@@ -1,8 +1,20 @@
 // Background service worker
+try {
+    importScripts('cost_constants.js');
+} catch (e) {
+    console.error('Failed to import cost_constants.js:', e);
+}
+
 console.log('Background service worker loaded');
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log('Extension installed');
+    // Initialize total cost if not exists
+    chrome.storage.local.get(['totalCost'], (result) => {
+        if (result.totalCost === undefined) {
+            chrome.storage.local.set({ totalCost: 0 });
+        }
+    });
 });
 
 // Listen for messages from content script
@@ -76,6 +88,7 @@ ${text}
         }
 
         let summary = "";
+        let costInfo = null;
 
         if (apiProvider === 'gemini') {
             // --- Gemini API Request ---
@@ -105,12 +118,20 @@ ${text}
             const data = await response.json();
             if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts.length > 0) {
                 summary = data.candidates[0].content.parts[0].text;
+
+                // Calculate Cost
+                if (data.usageMetadata) {
+                    const inputTokens = data.usageMetadata.promptTokenCount || 0;
+                    const outputTokens = data.usageMetadata.candidatesTokenCount || 0;
+                    costInfo = await updateCost(geminiModel, inputTokens, outputTokens);
+                }
             } else {
                 throw new Error('Gemini API returned an unexpected response format.');
             }
 
         } else {
             // --- OpenAI API Request ---
+            const targetModel = model || 'gpt-4o-mini';
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -118,7 +139,7 @@ ${text}
                     'Authorization': `Bearer ${apiKey}`
                 },
                 body: JSON.stringify({
-                    model: model || 'gpt-4o-mini',
+                    model: targetModel,
                     messages: [
                         { role: 'system', content: systemPrompt },
                         { role: 'user', content: userContent }
@@ -134,12 +155,52 @@ ${text}
 
             const data = await response.json();
             summary = data.choices[0].message.content;
+
+            // Calculate Cost
+            if (data.usage) {
+                const inputTokens = data.usage.prompt_tokens || 0;
+                const outputTokens = data.usage.completion_tokens || 0;
+                costInfo = await updateCost(targetModel, inputTokens, outputTokens);
+            }
         }
 
-        return { success: true, summary };
+        return { success: true, summary, costInfo };
 
     } catch (error) {
         console.error('Summary generation error:', error);
         return { success: false, error: error.message };
+    }
+}
+
+async function updateCost(modelName, inputTokens, outputTokens) {
+    try {
+        const costs = self.MODEL_COSTS || {};
+        const rate = costs[modelName] || { input: 0, output: 0 }; // Default to 0 if unknown
+
+        // Cost calculation (Rate is per 1M tokens)
+        const inputCost = (inputTokens / 1000000) * rate.input;
+        const outputCost = (outputTokens / 1000000) * rate.output;
+        const currentCost = inputCost + outputCost;
+
+        // Update Storage
+        const result = await chrome.storage.local.get(['totalCost', 'sessionCost']);
+        const newTotalCost = (result.totalCost || 0) + currentCost;
+        const newSessionCost = (result.sessionCost || 0) + currentCost;
+
+        await chrome.storage.local.set({
+            totalCost: newTotalCost,
+            sessionCost: newSessionCost
+        });
+
+        console.log(`Cost updated: +$${currentCost.toFixed(6)} (Total: $${newTotalCost.toFixed(6)})`);
+
+        return {
+            currentCost: currentCost,
+            totalCost: newTotalCost,
+            sessionCost: newSessionCost
+        };
+    } catch (e) {
+        console.error('Error calculating cost:', e);
+        return null;
     }
 }

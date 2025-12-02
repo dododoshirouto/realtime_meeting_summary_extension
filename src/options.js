@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const systemPromptInput = document.getElementById('systemPrompt');
     const saveButton = document.getElementById('save');
     const status = document.getElementById('status');
+    const totalCostDisplay = document.getElementById('totalCostDisplay');
+    const resetCostButton = document.getElementById('resetCost');
 
     // Default Prompt
     const DEFAULT_PROMPT = `あなたは会議の書記です。
@@ -27,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryInterval: 30,
         historyCount: 5,
         autoCaption: true, // Default to true
+        totalCost: 0,
         systemPrompt: DEFAULT_PROMPT
     }, (result) => {
         apiKeyInput.value = result.openaiApiKey;
@@ -38,6 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
         systemPromptInput.value = result.systemPrompt;
 
         updateProviderUI(result.apiProvider, result.openaiModel);
+
+        if (totalCostDisplay) {
+            totalCostDisplay.textContent = `$${(result.totalCost || 0).toFixed(4)}`;
+        }
     });
 
     // Real-time detection
@@ -160,5 +167,16 @@ document.addEventListener('DOMContentLoaded', () => {
             status.textContent = '';
             status.className = 'status';
         }, 3000);
+    }
+
+    if (resetCostButton) {
+        resetCostButton.addEventListener('click', () => {
+            if (confirm('累計コストをリセットしますか？')) {
+                chrome.storage.local.set({ totalCost: 0 }, () => {
+                    if (totalCostDisplay) totalCostDisplay.textContent = '$0.0000';
+                    showStatus('コストをリセットしました。', 'success');
+                });
+            }
+        });
     }
 });

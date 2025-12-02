@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const summaryContent = document.getElementById('summary-content');
     const statusText = document.getElementById('status-text');
+    const costDisplay = document.getElementById('cost-display');
     const instructionInput = document.getElementById('instruction-input');
     const sendBtn = document.getElementById('send-instruction-btn');
 
@@ -20,16 +21,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     sendBtn.textContent = '次回更新時に反映';
                 }
             }
+            if (changes.sessionCost) {
+                updateCost(changes.sessionCost.newValue);
+            }
         }
     });
 
     // Initial load with markdown parsing
-    chrome.storage.local.get(['meetingSummary'], (result) => {
+    chrome.storage.local.get(['meetingSummary', 'sessionCost'], (result) => {
         if (result.meetingSummary) {
             summaryContent.innerHTML = parseMarkdown(result.meetingSummary);
             statusText.innerText = 'Loaded.';
         }
+        if (result.sessionCost !== undefined) {
+            updateCost(result.sessionCost);
+        }
     });
+
+    function updateCost(cost) {
+        if (costDisplay) {
+            costDisplay.textContent = `$${(cost || 0).toFixed(4)}`;
+        }
+    }
 
     // Handle Instruction Sending
     sendBtn.addEventListener('click', () => {
@@ -54,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Simple Markdown Parser
     function parseMarkdown(text) {
         if (!text) return '';
+
+        // Normalize newlines: Replace 3+ newlines with 2 (max 1 empty line)
+        text = text.replace(/\n{3,}/g, '\n\n');
 
         // Escape HTML to prevent XSS (basic)
         let html = text.replace(/&/g, "&amp;")
