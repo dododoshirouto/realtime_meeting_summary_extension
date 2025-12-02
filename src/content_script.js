@@ -9,13 +9,15 @@ let isRequesting = false; // Flag to prevent overlapping requests
 // Default Config
 let config = {
   summaryInterval: 30, // seconds
-  historyCount: 5
+  historyCount: 5,
+  autoCaption: true // Default to true
 };
 
 // Load config
-chrome.storage.local.get(['summaryInterval', 'historyCount'], (result) => {
+chrome.storage.local.get(['summaryInterval', 'historyCount', 'autoCaption'], (result) => {
   if (result.summaryInterval) config.summaryInterval = result.summaryInterval;
   if (result.historyCount !== undefined) config.historyCount = result.historyCount;
+  if (result.autoCaption !== undefined) config.autoCaption = result.autoCaption;
   console.log('Config loaded:', config);
 });
 
@@ -24,6 +26,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local') {
     if (changes.summaryInterval) config.summaryInterval = changes.summaryInterval.newValue;
     if (changes.historyCount) config.historyCount = changes.historyCount.newValue;
+    if (changes.autoCaption !== undefined) config.autoCaption = changes.autoCaption.newValue;
     console.log('Config updated:', config);
   }
 });
@@ -185,15 +188,44 @@ setTimeout(() => {
   createSummaryPanel();
 
   // Auto-enable captions check
+  let autoCaptionTried = false;
+
   const checkCaptionsStatus = () => {
-    const captionBtn = document.querySelector('button[aria-label*="字幕"], button[aria-label*="Captions"]');
+    // Try to find the caption button by aria-label (Japanese or English)
+    const captionBtn = document.querySelector('button[aria-label*="字幕をオン"], button[aria-label*="Turn on captions"]');
+    const captionBtnOff = document.querySelector('button[aria-label*="字幕をオフ"], button[aria-label*="Turn off captions"]');
+
+    // Determine current state
+    let isPressed = false;
+    let targetBtn = null;
+
+    if (captionBtn) {
+      isPressed = false;
+      targetBtn = captionBtn;
+    } else if (captionBtnOff) {
+      isPressed = true;
+      targetBtn = captionBtnOff;
+    }
+
+    // Auto-click logic (Run only once per session/reload if config is enabled)
+    if (config.autoCaption && !autoCaptionTried && targetBtn && !isPressed) {
+      console.log('Auto-enabling captions...');
+      targetBtn.click();
+      autoCaptionTried = true;
+    } else if (config.autoCaption && !autoCaptionTried && isPressed) {
+      // Already on
+      console.log('Captions already enabled.');
+      autoCaptionTried = true;
+    }
+
     const logContent = document.querySelector('#captions-log .content');
 
-    if (captionBtn && logContent) {
-      const isPressed = captionBtn.getAttribute('aria-pressed') === 'true';
+    if (logContent) {
+      // Update UI Placeholder based on state
+      const isNowOn = document.querySelector('button[aria-label*="字幕をオフ"], button[aria-label*="Turn off captions"]') !== null;
       const placeholder = logContent.querySelector('.placeholder');
 
-      if (!isPressed) {
+      if (!isNowOn) {
         if (placeholder) {
           placeholder.textContent = '字幕を開いてください (Shift+C)';
           placeholder.style.color = '#d93025';

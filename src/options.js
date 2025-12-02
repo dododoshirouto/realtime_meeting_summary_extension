@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modelSelect = document.getElementById('model');
     const intervalInput = document.getElementById('interval');
     const historyCountInput = document.getElementById('historyCount');
+    const autoCaptionInput = document.getElementById('autoCaption');
     const systemPromptInput = document.getElementById('systemPrompt');
     const saveButton = document.getElementById('save');
     const status = document.getElementById('status');
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         openaiModel: 'gpt-4o-mini',
         summaryInterval: 30,
         historyCount: 5,
+        autoCaption: true, // Default to true
         systemPrompt: DEFAULT_PROMPT
     }, (result) => {
         apiKeyInput.value = result.openaiApiKey;
@@ -32,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // We pass the saved model to updateProviderUI to restore it
         intervalInput.value = result.summaryInterval;
         historyCountInput.value = result.historyCount;
+        autoCaptionInput.checked = result.autoCaption;
         systemPromptInput.value = result.systemPrompt;
 
         updateProviderUI(result.apiProvider, result.openaiModel);
@@ -51,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const model = modelSelect.value;
         const interval = parseInt(intervalInput.value, 10);
         const historyCount = parseInt(historyCountInput.value, 10);
+        const autoCaption = autoCaptionInput.checked;
         const systemPrompt = systemPromptInput.value;
 
         if (!apiKey) {
@@ -66,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
             openaiModel: model,
             summaryInterval: interval,
             historyCount: historyCount,
+            autoCaption: autoCaption,
             systemPrompt: systemPrompt
         }, () => {
             updateProviderUI(provider, model);
