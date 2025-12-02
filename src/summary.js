@@ -4,19 +4,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const instructionInput = document.getElementById('instruction-input');
     const sendBtn = document.getElementById('send-instruction-btn');
 
-    // Load initial state
-    chrome.storage.local.get(['meetingSummary'], (result) => {
-        if (result.meetingSummary) {
-            summaryContent.innerText = result.meetingSummary;
-            statusText.innerText = 'Loaded.';
-        }
-    });
-
     // Listen for changes in storage (from content script)
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local') {
             if (changes.meetingSummary) {
-                summaryContent.innerText = changes.meetingSummary.newValue;
+                const rawText = changes.meetingSummary.newValue;
+                summaryContent.innerHTML = parseMarkdown(rawText);
                 statusText.innerText = 'Updated from meeting.';
                 highlightUpdate();
 
@@ -27,6 +20,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     sendBtn.textContent = '次回更新時に反映';
                 }
             }
+        }
+    });
+
+    // Initial load with markdown parsing
+    chrome.storage.local.get(['meetingSummary'], (result) => {
+        if (result.meetingSummary) {
+            summaryContent.innerHTML = parseMarkdown(result.meetingSummary);
+            statusText.innerText = 'Loaded.';
         }
     });
 
@@ -48,5 +49,52 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             summaryContent.style.backgroundColor = 'transparent';
         }, 500);
+    }
+
+    // Simple Markdown Parser
+    function parseMarkdown(text) {
+        if (!text) return '';
+
+        // Escape HTML to prevent XSS (basic)
+        let html = text.replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+        // Headers
+        html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+        html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+        // Bold
+        html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+
+        // Italic
+        html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+
+        // Unordered Lists
+        // Simple block replacement for lists.
+        const lines = html.split('\n');
+        let inList = false;
+        let processedLines = lines.map(line => {
+            if (line.match(/^[-•] /)) {
+                const content = line.replace(/^[-•] /, '');
+                if (!inList) {
+                    inList = true;
+                    return '<ul><li>' + content + '</li>';
+                } else {
+                    return '<li>' + content + '</li>';
+                }
+            } else {
+                if (inList) {
+                    inList = false;
+                    return '</ul>' + line + '<br>'; // End list and add break
+                }
+                return line + '<br>';
+            }
+        });
+
+        if (inList) processedLines.push('</ul>'); // Close list if ended on one
+
+        return processedLines.join('');
     }
 });

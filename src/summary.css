@@ -53,29 +53,6 @@ main {
     white-space: pre-wrap;
     font-size: 1rem;
     padding: 10px;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    outline: none;
-    transition: border-color 0.3s, box-shadow 0.3s;
-}
-
-/* Markdown style adjustments */
-.summary-content h1,
-.summary-content h2,
-.summary-content h3 {
-    margin-top: 1.5em;
-    margin-bottom: 0.5em;
-}
-
-.summary-content ul,
-.summary-content ol {
-    padding-left: 20px;
-}
-
-footer {
-    border-top: 2px solid #eee;
-    padding-top: 20px;
-    flex-shrink: 0;
 }
 
 .instruction-area {
