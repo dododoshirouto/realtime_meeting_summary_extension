@@ -21,16 +21,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load saved settings
     chrome.storage.local.get({
         openaiApiKey: '',
+        apiProvider: 'openai', // 'openai' or 'gemini'
         openaiModel: 'gpt-4o-mini',
         summaryInterval: 30,
         historyCount: 5,
         systemPrompt: DEFAULT_PROMPT
     }, (result) => {
         apiKeyInput.value = result.openaiApiKey;
-        modelSelect.value = result.openaiModel;
+        // We don't set modelSelect.value here immediately because updateProviderUI will rebuild options
+        // We pass the saved model to updateProviderUI to restore it
         intervalInput.value = result.summaryInterval;
         historyCountInput.value = result.historyCount;
         systemPromptInput.value = result.systemPrompt;
+
+        updateProviderUI(result.apiProvider, result.openaiModel);
+    });
+
+    // Real-time detection
+    apiKeyInput.addEventListener('input', () => {
+        const apiKey = apiKeyInput.value.trim();
+        const provider = detectProvider(apiKey);
+        // Pass current selection to try and maintain it if possible, or let it reset
+        updateProviderUI(provider, modelSelect.value);
     });
 
     // Save settings
@@ -46,16 +58,95 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const provider = detectProvider(apiKey);
+
         chrome.storage.local.set({
             openaiApiKey: apiKey,
+            apiProvider: provider,
             openaiModel: model,
             summaryInterval: interval,
             historyCount: historyCount,
             systemPrompt: systemPrompt
         }, () => {
-            showStatus('設定を保存しました。', 'success');
+            updateProviderUI(provider, model);
+            showStatus(`設定を保存しました。(${provider === 'gemini' ? 'Gemini' : 'OpenAI'} detected)`, 'success');
         });
     });
+
+    function detectProvider(apiKey) {
+        if (apiKey.startsWith('AIza')) {
+            return 'gemini';
+        } else if (apiKey.startsWith('sk-')) {
+            return 'openai';
+        }
+        return 'openai'; // Default
+    }
+
+    function updateProviderUI(provider, currentModel) {
+        const statusSpan = document.getElementById('providerStatus');
+
+        if (!statusSpan) return;
+
+        modelSelect.innerHTML = ''; // Clear existing options
+
+        if (provider === 'gemini') {
+            statusSpan.textContent = '✅ Gemini Detected';
+            statusSpan.style.color = '#188038';
+
+            // Gemini Models
+            const geminiModels = [
+                { value: 'gemini-1.5-flash', text: 'gemini-1.5-flash (Recommended)' },
+                { value: 'gemini-1.5-pro', text: 'gemini-1.5-pro' },
+                { value: 'gemini-2.0-flash', text: 'gemini-2.0-flash' },
+                { value: 'gemini-2.5-pro', text: 'gemini-2.5-pro' },
+                { value: 'gemini-2.5-flash', text: 'gemini-2.5-flash' },
+                { value: 'gemini-2.5-flash-lite', text: 'gemini-2.5-flash-lite' },
+                { value: 'gemini-3-pro', text: 'gemini-3-pro' }
+            ];
+
+            geminiModels.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.value;
+                option.textContent = m.text;
+                modelSelect.appendChild(option);
+            });
+
+            modelSelect.disabled = false;
+
+        } else {
+            statusSpan.textContent = '✅ OpenAI Detected';
+            statusSpan.style.color = '#1a73e8';
+
+            // OpenAI Models
+            const openaiModels = [
+                { value: 'gpt-4o-mini', text: 'gpt-4o-mini (Recommended)' },
+                { value: 'gpt-4o', text: 'gpt-4o' },
+                { value: 'gpt-3.5-turbo', text: 'gpt-3.5-turbo' }
+            ];
+
+            openaiModels.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.value;
+                option.textContent = m.text;
+                modelSelect.appendChild(option);
+            });
+
+            modelSelect.disabled = false;
+        }
+
+        // Attempt to restore selection
+        let hasOption = false;
+        for (let i = 0; i < modelSelect.options.length; i++) {
+            if (modelSelect.options[i].value === currentModel) {
+                modelSelect.value = currentModel;
+                hasOption = true;
+                break;
+            }
+        }
+
+        // If the current model is not available in the new list (e.g. switched provider), 
+        // it defaults to the first option automatically (browser behavior), which is what we want (Recommended).
+    }
 
     function showStatus(message, type) {
         status.textContent = message;

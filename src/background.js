@@ -20,9 +20,11 @@ async function handleSummaryRequest(request) {
         const { text, currentSummary, model } = request;
 
         // Get API key and Prompt from storage
-        const result = await chrome.storage.local.get(['openaiApiKey', 'systemPrompt']);
+        const result = await chrome.storage.local.get(['openaiApiKey', 'systemPrompt', 'apiProvider', 'openaiModel']);
         const apiKey = result.openaiApiKey;
         const customPrompt = result.systemPrompt;
+        const apiProvider = result.apiProvider || 'openai'; // Default to openai
+        const storedModel = result.openaiModel;
 
         if (!apiKey) {
             throw new Error('API Key is not set. Please check options.');
@@ -73,30 +75,66 @@ ${text}
             }
         }
 
-        // Call OpenAI API
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: model || 'gpt-4o-mini',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userContent }
-                ],
-                max_tokens: 1000
-            })
-        });
+        let summary = "";
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || 'API request failed');
+        if (apiProvider === 'gemini') {
+            // --- Gemini API Request ---
+            // Use the selected model or default to flash
+            const geminiModel = model || storedModel || 'gemini-1.5-flash';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: systemPrompt + "\n\n" + userContent }
+                        ]
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || 'Gemini API request failed');
+            }
+
+            const data = await response.json();
+            if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts.length > 0) {
+                summary = data.candidates[0].content.parts[0].text;
+            } else {
+                throw new Error('Gemini API returned an unexpected response format.');
+            }
+
+        } else {
+            // --- OpenAI API Request ---
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model || 'gpt-4o-mini',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userContent }
+                    ],
+                    max_tokens: 1000
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || 'API request failed');
+            }
+
+            const data = await response.json();
+            summary = data.choices[0].message.content;
         }
-
-        const data = await response.json();
-        const summary = data.choices[0].message.content;
 
         return { success: true, summary };
 
