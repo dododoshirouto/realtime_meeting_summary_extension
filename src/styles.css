@@ -1,7 +1,7 @@
 #meeting-summary-panel {
     position: fixed;
     bottom: 20px;
-    right: 20px;
+    left: 20px;
     width: 320px;
     background-color: white;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
