@@ -2,6 +2,8 @@
 // Format: { input: number, output: number }
 self.MODEL_COSTS = {
     // OpenAI (User provided)
+    'gpt-5.5': { input: 1.25, output: 10.00 },
+    'gpt-5.4-mini': { input: 0.25, output: 2.00 },
     'gpt-5.1': { input: 1.25, output: 10.00 },
     'gpt-5': { input: 1.25, output: 10.00 },
     'gpt-5-mini': { input: 0.25, output: 2.00 },
@@ -56,5 +58,7 @@ self.MODEL_COSTS = {
     'gemini-2.5-flash': { input: 0.30, output: 2.50 },
     'gemini-2.5-flash-lite': { input: 0.10, output: 0.40 },
     'gemini-2.5-pro': { input: 1.25, output: 10.00 },
-    'gemini-3-pro': { input: 2.00, output: 12.00 }
+    'gemini-3-pro': { input: 2.00, output: 12.00 },
+    'gemini-3.5-flash': { input: 0.30, output: 2.50 },
+    'gemini-3.1-pro': { input: 2.00, output: 12.00 }
 };

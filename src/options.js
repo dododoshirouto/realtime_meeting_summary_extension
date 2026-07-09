@@ -11,6 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalCostDisplay = document.getElementById('totalCostDisplay');
     const resetCostButton = document.getElementById('resetCost');
 
+    const providerModeSelect = document.getElementById('providerMode');
+    const cloudSection = document.getElementById('cloudSection');
+    const llamaSection = document.getElementById('llamaSection');
+    const llamaHostInput = document.getElementById('llamaHost');
+    const llamaPortInput = document.getElementById('llamaPort');
+    const llamaModelSelect = document.getElementById('llamaModel');
+    const llamaModelStatus = document.getElementById('llamaModelStatus');
+    const fetchLlamaModelsButton = document.getElementById('fetchLlamaModels');
+
     // Default Prompt
     const DEFAULT_PROMPT = `あなたは会議の書記です。
 「現在の議事録」と「追加の会話（字幕）」が提供されます。
@@ -25,8 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load saved settings
     chrome.storage.local.get({
         openaiApiKey: '',
-        apiProvider: 'openai', // 'openai' or 'gemini'
+        apiProvider: 'openai', // 'openai', 'gemini', or 'llama'
         openaiModel: 'gpt-4o-mini',
+        llamaHost: '127.0.0.1',
+        llamaPort: 8080,
+        llamaModel: '',
         maxTokens: 5000, // Default
         summaryInterval: 30,
         historyCount: 5,
@@ -43,7 +55,24 @@ document.addEventListener('DOMContentLoaded', () => {
         autoCaptionInput.checked = result.autoCaption;
         systemPromptInput.value = result.systemPrompt;
 
-        updateProviderUI(result.apiProvider, result.openaiModel);
+        llamaHostInput.value = result.llamaHost;
+        llamaPortInput.value = result.llamaPort;
+
+        if (result.apiProvider === 'llama') {
+            providerModeSelect.value = 'llama';
+            if (result.llamaModel) {
+                const option = document.createElement('option');
+                option.value = result.llamaModel;
+                option.textContent = result.llamaModel;
+                llamaModelSelect.appendChild(option);
+                llamaModelSelect.value = result.llamaModel;
+            }
+            updateProviderModeUI('llama');
+        } else {
+            providerModeSelect.value = 'cloud';
+            updateProviderModeUI('cloud');
+            updateProviderUI(result.apiProvider, result.openaiModel);
+        }
 
         if (totalCostDisplay) {
             totalCostDisplay.textContent = `$${(result.totalCost || 0).toFixed(4)}`;
@@ -58,15 +87,76 @@ document.addEventListener('DOMContentLoaded', () => {
         updateProviderUI(provider, modelSelect.value);
     });
 
+    providerModeSelect.addEventListener('change', () => {
+        updateProviderModeUI(providerModeSelect.value);
+    });
+
+    fetchLlamaModelsButton.addEventListener('click', async () => {
+        const host = llamaHostInput.value.trim() || '127.0.0.1';
+        const port = llamaPortInput.value.trim() || '8080';
+
+        llamaModelStatus.textContent = '取得中...';
+        llamaModelStatus.style.color = '#666';
+
+        try {
+            const response = await fetch(`http://${host}:${port}/v1/models`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            const data = await response.json();
+            const models = data.data || [];
+
+            llamaModelSelect.innerHTML = '';
+            models.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.id;
+                option.textContent = m.id;
+                llamaModelSelect.appendChild(option);
+            });
+
+            llamaModelStatus.textContent = `✅ ${models.length}件のモデルを取得しました`;
+            llamaModelStatus.style.color = '#188038';
+        } catch (e) {
+            llamaModelStatus.textContent = `⚠️ 取得失敗: ${e.message}`;
+            llamaModelStatus.style.color = '#d93025';
+        }
+    });
+
     // Save settings
     saveButton.addEventListener('click', () => {
-        const apiKey = apiKeyInput.value.trim();
-        const model = modelSelect.value;
         const maxTokens = parseInt(maxTokensInput.value, 10);
         const interval = parseInt(intervalInput.value, 10);
         const historyCount = parseInt(historyCountInput.value, 10);
         const autoCaption = autoCaptionInput.checked;
         const systemPrompt = systemPromptInput.value;
+
+        if (providerModeSelect.value === 'llama') {
+            const llamaHost = llamaHostInput.value.trim() || '127.0.0.1';
+            const llamaPort = parseInt(llamaPortInput.value, 10) || 8080;
+            const llamaModel = llamaModelSelect.value;
+
+            if (!llamaModel) {
+                showStatus('llama.cpp のモデルを取得・選択してください。', 'error');
+                return;
+            }
+
+            chrome.storage.local.set({
+                apiProvider: 'llama',
+                llamaHost: llamaHost,
+                llamaPort: llamaPort,
+                llamaModel: llamaModel,
+                maxTokens: maxTokens,
+                summaryInterval: interval,
+                historyCount: historyCount,
+                autoCaption: autoCaption,
+                systemPrompt: systemPrompt
+            }, () => {
+                showStatus('設定を保存しました。(llama.cpp)', 'success');
+            });
+            return;
+        }
+
+        const apiKey = apiKeyInput.value.trim();
+        const model = modelSelect.value;
 
         if (!apiKey) {
             showStatus('APIキーを入力してください。', 'error');
@@ -89,6 +179,16 @@ document.addEventListener('DOMContentLoaded', () => {
             showStatus(`設定を保存しました。(${provider === 'gemini' ? 'Gemini' : 'OpenAI'} detected)`, 'success');
         });
     });
+
+    function updateProviderModeUI(mode) {
+        if (mode === 'llama') {
+            cloudSection.style.display = 'none';
+            llamaSection.style.display = 'block';
+        } else {
+            cloudSection.style.display = 'block';
+            llamaSection.style.display = 'none';
+        }
+    }
 
     function detectProvider(apiKey) {
         if (apiKey.startsWith('AIza')) {
@@ -118,7 +218,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 { value: 'gemini-2.5-pro', text: 'gemini-2.5-pro' },
                 { value: 'gemini-2.5-flash', text: 'gemini-2.5-flash' },
                 { value: 'gemini-2.5-flash-lite', text: 'gemini-2.5-flash-lite' },
-                { value: 'gemini-3-pro', text: 'gemini-3-pro' }
+                { value: 'gemini-3-pro', text: 'gemini-3-pro' },
+                { value: 'gemini-3.5-flash', text: 'gemini-3.5-flash' },
+                { value: 'gemini-3.1-pro', text: 'gemini-3.1-pro' }
             ];
 
             geminiModels.forEach(m => {
@@ -138,7 +240,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const openaiModels = [
                 { value: 'gpt-4o-mini', text: 'gpt-4o-mini (Recommended)' },
                 { value: 'gpt-4o', text: 'gpt-4o' },
-                { value: 'gpt-3.5-turbo', text: 'gpt-3.5-turbo' }
+                { value: 'gpt-3.5-turbo', text: 'gpt-3.5-turbo' },
+                { value: 'gpt-5.5', text: 'gpt-5.5' },
+                { value: 'gpt-5.4-mini', text: 'gpt-5.4-mini' }
             ];
 
             openaiModels.forEach(m => {

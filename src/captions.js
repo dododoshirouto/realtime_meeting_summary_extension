@@ -1,13 +1,11 @@
 class CaptionObserver {
     constructor(onCaptionUpdate) {
         this.onCaptionUpdate = onCaptionUpdate;
-        this.observer = null;
-        this.observedElements = new Set();
         this.isObserving = false;
         this.captionTrack = null;
-        this.nodeTimers = new Map(); // Map<Node, TimerId>
-        this.nodeIds = new WeakMap(); // Map<Node, number>
-        this.nextNodeId = 0;
+        this.entryTimers = new WeakMap(); // Map<entryEl, timerId>
+        this.entryIds = new WeakMap(); // Map<entryEl, number>
+        this.nextEntryId = 0;
     }
 
     start() {
@@ -16,7 +14,7 @@ class CaptionObserver {
         console.log('CaptionObserver: Starting observation...');
 
         // Observer to find the caption container
-        const bodyObserver = new MutationObserver((mutations) => {
+        const bodyObserver = new MutationObserver(() => {
             this.findAndObserveCaptions();
         });
 
@@ -37,10 +35,7 @@ class CaptionObserver {
             return; // Already observing
         }
 
-        // User feedback: The container has aria-label="字幕" (or "Captions" in English)
-        // Selector: [aria-label="字幕"], [aria-label="Captions"]
-        // Also role="region"
-
+        // The container has aria-label="字幕" (or "Captions" in English), role="region".
         const candidate = document.querySelector('[aria-label="字幕"][role="region"]') ||
             document.querySelector('[aria-label="Captions"][role="region"]');
 
@@ -51,24 +46,26 @@ class CaptionObserver {
                     console.log('CaptionObserver: Found caption track (aria-label)', candidate);
                     this.captionTrack = candidate;
                     this.observeTrack(candidate);
+
+                    // Process any entries already present in the track
+                    Array.from(candidate.children).forEach(entry => this.scheduleProcess(entry));
                 }
             }
         }
     }
 
     observeTrack(track) {
-        // Disconnect previous track observer if any (not implemented for simplicity, relying on GC/overwrite)
-
         const trackObserver = new MutationObserver((mutations) => {
             mutations.forEach(mutation => {
                 if (mutation.type === 'childList') {
                     mutation.addedNodes.forEach(node => {
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            this.processNode(node);
-                        }
+                        if (node.nodeType !== Node.ELEMENT_NODE) return;
+                        const entry = this.resolveEntry(node, track);
+                        if (entry) this.scheduleProcess(entry);
                     });
                 } else if (mutation.type === 'characterData') {
-                    this.processNode(mutation.target);
+                    const entry = this.resolveEntry(mutation.target, track);
+                    if (entry) this.scheduleProcess(entry);
                 }
             });
         });
@@ -80,90 +77,91 @@ class CaptionObserver {
         });
     }
 
-    processNode(node) {
-        if (!node) return;
+    // Each caption "turn" (speaker avatar/name + text) is a direct child of the track.
+    // Walk up from whatever node mutated until we reach that direct child.
+    resolveEntry(node, track) {
+        let el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        if (!el || el === track) return null;
 
-        // Clear existing timer for this node to debounce updates
-        if (this.nodeTimers.has(node)) {
-            clearTimeout(this.nodeTimers.get(node));
+        while (el.parentElement && el.parentElement !== track) {
+            el = el.parentElement;
         }
 
-        // Set a new timer to wait for stabilization
-        // Reduced to 500ms to feel more responsive while still batching characters
-        const timerId = setTimeout(() => {
-            this.handleFinalizedNode(node);
-            this.nodeTimers.delete(node);
-        }, 500);
-
-        this.nodeTimers.set(node, timerId);
+        if (el.parentElement !== track) return null;
+        return el;
     }
 
-    handleFinalizedNode(node) {
-        // The text is likely deep inside.
-        const text = node.textContent;
+    scheduleProcess(entryEl) {
+        if (!entryEl || entryEl.nodeType !== Node.ELEMENT_NODE) return;
 
-        if (text && text.trim().length > 0) {
-            // Filter out known UI noise
-            if (text.includes('カメラはオン') || text.includes('マイクはオン') || text.includes('参加しました')) {
-                return;
-            }
-
-            // Get or assign unique ID for this node
-            let nodeId = this.nodeIds.get(node);
-            if (nodeId === undefined) {
-                nodeId = this.nextNodeId++;
-                this.nodeIds.set(node, nodeId);
-            }
-
-            // Attempt to find speaker
-            let speaker = 'Unknown';
-            let parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-
-            // Traverse up to find the container
-            for (let i = 0; i < 5; i++) {
-                if (!parent || parent === document.body) break;
-
-                // Strategy 1: Look for img with alt text (Avatar)
-                let img = parent.querySelector('img');
-                if (img && img.alt) {
-                    speaker = img.alt;
-                    break;
-                }
-
-                // Strategy 2: Look for specific speaker name class
-                const nameEl = parent.querySelector('.zs7s8d, .TBMuR');
-                if (nameEl && nameEl.textContent) {
-                    speaker = nameEl.textContent;
-                    break;
-                }
-
-                // Strategy 3: Check siblings
-                let sibling = parent.previousElementSibling;
-                while (sibling) {
-                    img = sibling.querySelector('img') || (sibling.tagName === 'IMG' ? sibling : null);
-                    if (img && img.alt) {
-                        speaker = img.alt;
-                        break;
-                    }
-                    sibling = sibling.previousElementSibling;
-                }
-                if (speaker !== 'Unknown') break;
-
-                parent = parent.parentElement;
-            }
-
-            // Fallback for "You"
-            // If speaker is unknown, check if the text container has a "self" indicator?
-            // Often difficult. For now, we rely on the ID to keep the text consistent.
-
-            // Send update
-            this.onCaptionUpdate({
-                id: nodeId, // Pass the unique ID
-                text: text.trim(),
-                speaker: speaker,
-                timestamp: new Date().toISOString()
-            });
+        // Debounce: wait for the caption text to stabilize before reading it
+        if (this.entryTimers.has(entryEl)) {
+            clearTimeout(this.entryTimers.get(entryEl));
         }
+
+        const timerId = setTimeout(() => {
+            this.finalizeEntry(entryEl);
+            this.entryTimers.delete(entryEl);
+        }, 500);
+
+        this.entryTimers.set(entryEl, timerId);
+    }
+
+    finalizeEntry(entryEl) {
+        if (!entryEl || !document.body.contains(entryEl)) return;
+
+        const data = this.extractEntryData(entryEl);
+        if (!data || !data.text) return;
+
+        // Filter out known UI noise
+        if (data.text.includes('カメラはオン') || data.text.includes('マイクはオン') || data.text.includes('参加しました')) {
+            return;
+        }
+
+        let entryId = this.entryIds.get(entryEl);
+        if (entryId === undefined) {
+            entryId = this.nextEntryId++;
+            this.entryIds.set(entryEl, entryId);
+        }
+
+        this.onCaptionUpdate({
+            id: entryId,
+            text: data.text,
+            speaker: data.speaker,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // A caption entry is structured as:
+    //   <div> (entry, direct child of the track)
+    //     <div> (header: avatar <img> + <span>speaker name</span>)
+    //     <div> (caption text)
+    //   </div>
+    // Both the header/text container classes are obfuscated and change between
+    // Meet releases, so we rely on structural position rather than class names,
+    // falling back to the avatar's alt text if no name span is found.
+    extractEntryData(entryEl) {
+        const childDivs = Array.from(entryEl.children).filter(c => c.tagName === 'DIV');
+        if (childDivs.length === 0) return null;
+
+        const headerEl = childDivs.length > 1 ? childDivs[0] : null;
+        const textEl = childDivs[childDivs.length - 1];
+
+        let speaker = 'Unknown';
+        if (headerEl) {
+            const nameSpan = headerEl.querySelector('span');
+            if (nameSpan && nameSpan.textContent.trim()) {
+                speaker = nameSpan.textContent.trim();
+            } else {
+                const img = headerEl.querySelector('img[alt]');
+                if (img && img.alt.trim()) {
+                    speaker = img.alt.trim();
+                }
+            }
+        }
+
+        const text = (textEl.textContent || '').trim();
+        return { speaker, text };
     }
 }
 

@@ -1,6 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
     const statusDiv = document.getElementById('status');
     const settingsBtn = document.getElementById('openSettings');
+    const toggleExtension = document.getElementById('toggleExtension');
+    const toggleLabel = document.getElementById('toggleLabel');
+
+    // Initialize toggle state
+    chrome.storage.local.get(['extensionEnabled'], (result) => {
+        const isEnabled = result.extensionEnabled !== false; // Default to true
+        toggleExtension.checked = isEnabled;
+        updateToggleLabel(isEnabled);
+    });
+
+    toggleExtension.addEventListener('change', () => {
+        const isEnabled = toggleExtension.checked;
+        chrome.storage.local.set({ extensionEnabled: isEnabled }, () => {
+            updateToggleLabel(isEnabled);
+        });
+    });
+
+    function updateToggleLabel(isEnabled) {
+        toggleLabel.textContent = isEnabled ? '機能有効' : '機能無効';
+        toggleLabel.style.color = isEnabled ? '#202124' : '#5f6368';
+    }
 
     settingsBtn.addEventListener('click', () => {
         if (chrome.runtime.openOptionsPage) {

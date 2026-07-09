@@ -10,14 +10,19 @@ let isRequesting = false; // Flag to prevent overlapping requests
 let config = {
   summaryInterval: 30, // seconds
   historyCount: 5,
-  autoCaption: true // Default to true
+  summaryInterval: 30, // seconds
+  historyCount: 5,
+  autoCaption: true, // Default to true
+  extensionEnabled: true // Default to true
 };
 
 // Load config
 chrome.storage.local.get(['summaryInterval', 'historyCount', 'autoCaption'], (result) => {
   if (result.summaryInterval) config.summaryInterval = result.summaryInterval;
   if (result.historyCount !== undefined) config.historyCount = result.historyCount;
+  if (result.historyCount !== undefined) config.historyCount = result.historyCount;
   if (result.autoCaption !== undefined) config.autoCaption = result.autoCaption;
+  if (result.extensionEnabled !== undefined) config.extensionEnabled = result.extensionEnabled;
   console.log('Config loaded:', config);
 });
 
@@ -27,6 +32,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     if (changes.summaryInterval) config.summaryInterval = changes.summaryInterval.newValue;
     if (changes.historyCount) config.historyCount = changes.historyCount.newValue;
     if (changes.autoCaption !== undefined) config.autoCaption = changes.autoCaption.newValue;
+    if (changes.extensionEnabled !== undefined) config.extensionEnabled = changes.extensionEnabled.newValue;
     console.log('Config updated:', config);
   }
 });
@@ -110,6 +116,11 @@ async function triggerSummary() {
   // Safe Interval Check:
   // 1. Check if enough time passed since last SUCCESSFUL summary start
   // 2. Check if a request is currently in progress (isRequesting)
+
+  if (!config.extensionEnabled) {
+    // console.log('Extension is disabled.');
+    return;
+  }
 
   const now = Date.now();
   const intervalMs = config.summaryInterval * 1000;

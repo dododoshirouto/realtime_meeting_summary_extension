@@ -32,14 +32,14 @@ async function handleSummaryRequest(request) {
         const { text, currentSummary, model } = request;
 
         // Get API key and Prompt from storage
-        const result = await chrome.storage.local.get(['openaiApiKey', 'systemPrompt', 'apiProvider', 'openaiModel', 'maxTokens']);
+        const result = await chrome.storage.local.get(['openaiApiKey', 'systemPrompt', 'apiProvider', 'openaiModel', 'maxTokens', 'llamaHost', 'llamaPort', 'llamaModel']);
         const apiKey = result.openaiApiKey;
         const customPrompt = result.systemPrompt;
         const apiProvider = result.apiProvider || 'openai'; // Default to openai
         const storedModel = result.openaiModel;
         const maxTokens = result.maxTokens || 5000; // Default to 5000
 
-        if (!apiKey) {
+        if (apiProvider !== 'llama' && !apiKey) {
             throw new Error('API Key is not set. Please check options.');
         }
 
@@ -133,9 +133,40 @@ ${text}
                 throw new Error('Gemini API returned an unexpected response format.');
             }
 
+        } else if (apiProvider === 'llama') {
+            // --- llama.cpp (llama-server) API Request (OpenAI-compatible) ---
+            const llamaHost = result.llamaHost || '127.0.0.1';
+            const llamaPort = result.llamaPort || 8080;
+            const targetModel = model || result.llamaModel;
+            const url = `http://${llamaHost}:${llamaPort}/v1/chat/completions`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: targetModel,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userContent }
+                    ],
+                    max_tokens: maxTokens
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `llama.cpp server request failed (HTTP ${response.status})`);
+            }
+
+            const data = await response.json();
+            summary = data.choices[0].message.content;
+            // Local inference has no monetary cost; skip cost tracking.
+
         } else {
             // --- OpenAI API Request ---
-            const targetModel = model || 'gpt-4o-mini';
+            const targetModel = model || storedModel || 'gpt-4o-mini';
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
